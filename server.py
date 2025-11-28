@@ -5,22 +5,37 @@ from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
 from fastmcp import FastMCP
 
-# Load .env
+# Load environment variables
 load_dotenv()
 
-# Config
+# -------------------------------------
+# CONFIG
+# -------------------------------------
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-INDEX_NAME = os.getenv("INDEX_NAME", "lang-docs")
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+LANG_INDEX_NAME = os.getenv("LANG_INDEX_NAME", "lang-docs")
+RETELL_INDEX_NAME = os.getenv("RETELL_INDEX_NAME", "retell-docs")
 
+EMBED_MODEL = "all-MiniLM-L6-v2"
+
+# Load embedding model once
+model = SentenceTransformer(EMBED_MODEL)
+
+# Connect Pinecone
 pc = Pinecone(api_key=PINECONE_API_KEY)
-index = pc.Index(INDEX_NAME)
 
-mcp = FastMCP("pinecone-doc-search")
+lang_index = pc.Index(LANG_INDEX_NAME)
+retell_index = pc.Index(RETELL_INDEX_NAME)
+
+# MCP server
+mcp = FastMCP("pinecone-multi-search")
 
 
-def pinecone_search(query, top_k=3):
+# -------------------------------------
+# HELPERS
+# -------------------------------------
+def pinecone_query(index, query, top_k):
+    """Run semantic search on ANY Pinecone index."""
     q_vec = model.encode(query).tolist()
 
     results = index.query(
@@ -32,21 +47,36 @@ def pinecone_search(query, top_k=3):
     output = []
     for match in results["matches"]:
         md = match["metadata"]
+
         output.append({
             "score": match["score"],
-            "uri": md["uri"],
-            "title": md["title"],
-            "preview": md["text"][:350],
+            "uri": md.get("uri"),
+            "title": md.get("title"),
+            "source_url": md.get("source_url"),
+            "preview": md.get("text", "")[:350]
         })
 
     return output
 
 
+# -------------------------------------
+# TOOLS
+# -------------------------------------
+
 @mcp.tool
-async def search_tool(query: str, top_k: int = 3):
-    """Semantic search using Pinecone vector DB."""
-    return pinecone_search(query, top_k)
+async def lang_search(query: str, top_k: int = 5):
+    """Search the LangChain/LangGraph documentation."""
+    return pinecone_query(lang_index, query, top_k)
 
 
+@mcp.tool
+async def retell_search(query: str, top_k: int = 5):
+    """Search the RetellAI documentation stored in Pinecone."""
+    return pinecone_query(retell_index, query, top_k)
+
+
+# -------------------------------------
+# RUN SERVER
+# -------------------------------------
 if __name__ == "__main__":
     mcp.run()
