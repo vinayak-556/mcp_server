@@ -28,7 +28,7 @@ lang_index = pc.Index(LANG_INDEX_NAME)
 retell_index = pc.Index(RETELL_INDEX_NAME)
 
 # MCP server
-mcp = FastMCP("pinecone-multi-search",protocol_version="2025-03-26")
+mcp = FastMCP("pinecone-multi-search")
 
 
 # -------------------------------------
@@ -80,4 +80,5 @@ async def retell_search(query: str, top_k: int = 5):
 # -------------------------------------
 if __name__ == "__main__":
     mcp.run()
+
 
