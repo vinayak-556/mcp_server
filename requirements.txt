@@ -3,3 +3,4 @@ numpy
 beautifulsoup4
 sentence-transformers
 pinecone
+fastmcp
